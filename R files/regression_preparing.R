@@ -1,42 +1,49 @@
 # This file focus on preparing a version for regression
-version1 <- tbl_df(select(merge_final,Country:country))
+setwd("/users/mac/desktop/Predicting-Currency-Crisis")
+
+library(foreign)
+library(dplyr)
+library(data.table)
+library(lubridate)
+library(zoo)
+library(ggplot2)
+
+version1 <- read.dta("data/Merge_final.dta")
+version1 <- tbl_df(select(version1,Country:country))
 
 # use export and import data to generate cagdp data.
 version1 <- mutate(version1,ca=export-import)
+version1 <- select(version1,-diff_reserve)
 version1$cagdp <- version1$ca/version1$gdp
+version1$time <- as.numeric(version1$time)
+version1$time <- as.Date(version1$time,origin=ymd(19600101))
 # cuttail the time period
 version1 <- filter(version1,time>ymd(19800101))
 
 
-# try to plot the reserve change, inapplicable
-# brazil$reserve_ln <- log(brazil$reserve)
-# brazil <- filter(brazil,time>ymd(19800101),time<ymd(19900101))
-# brazil$time2 <- as.numeric(brazil$time)
-# qplot(brazil$time2,log(brazil$reserve))+geom_smooth()
-#   scale_x_continuous(breaks = seq(3683,7274,by=200 ))
+# currency pressure index
+
+## monthly percentage change in exchange rate
+version2 <- mutate(version1,ExRate_percent=(ExRate-lag(ExRate))/lag(ExRate)*100)
+version2 <- mutate(version2,reserve_percent=(reserve-lag(reserve))/lag(reserve)*100)
+alpha <- sd(version2$reserve_percent,na.rm=TRUE)/(sd(version2$ExRate_percent,na.rm=TRUE)+sd(version2$reserve_percent,na.rm = TRUE))   # alpha is the weight for ExRate_percent, and 1-alpha is the weight for reserve_percent
 
 
-ma <- rollmeanr(version1$reserve,12)
-ma2 <- rep(NA,6976)
-ma2[12:6976] <- ma
-version1$ma <- ma2
-version1$diff_reserve <- (version1$reserve - version1$ma)/version1$ma
-version2 <- filter(version1,diff_reserve < -0.3)
 
-# x.Date <- as.Date(paste(2004, rep(1:4, 4:1), sample(1:28, 10), sep = "-"))
-# x <- zoo(rnorm(12), x.Date)
 
-# rollmean(x, 3)
-# rollmeanr(x,3)
-# rollmax(x, 3)
-# rollmedian(x, 3)
-# rollsum(x, 3)
-# 
-# xm <- zoo(matrix(1:12, 4, 3), x.Date[1:4])
-# rollmean(xm, 3)
-# rollmax(xm, 3)
-# rollmedian(xm, 3)
-# rollsum(xm, 3)
-# 
-# rollapply(xm, 3, mean) # uses rollmean
-# rollapply(xm, 3, function(x) mean(x)) # does not use rollmean
+version3 <- group_by(version1,Country)
+version4 <- mutate(version3,ExRate_percent=(ExRate-lag(ExRate))/lag(ExRate)*100)
+version4 <- group_by(version4,Country)
+version4 <- mutate(version4,reserve_percent=(reserve-lag(reserve))/lag(reserve)*100)
+
+version5 <- group_by(version4,Country)
+alpha <- summarise(version5,sd(reserve_percent,na.rm=TRUE)/(sd(ExRate_percent,na.rm=TRUE)+sd(reserve_percent,na.rm = TRUE)))
+
+
+
+
+
+version2$currency_index <- alpha*version2$ExRate_percent - (1-alpha)*version2$reserve_percent
+
+
+qplot(version2$time,version2$currency_index)
