@@ -56,3 +56,94 @@ version9 <- mutate(version8,crisis=(pressure_index>(mean(pressure_index,na.rm=TR
 # try this: 
 # version9[which(version9$crisis==TRUE),]
 
+dim(version9[which(version9$crisis==TRUE),])
+
+version_check <- version9[which(version9$crisis==TRUE),c("Country","time","crisis")]
+
+version9 <- group_by(version9)
+# version10 <- mutate(version9,crisis_24m=FALSE)
+# for (x in c(0:24)){
+#   if (version10$crisis_24m == FALSE){
+#     version10$crisis_24m <- lead(version10$crisis_24m,x)
+#   }
+# }
+version10 <- mutate(version9,crisis_24m=(lead(crisis,1)==TRUE | lead(crisis,2)==TRUE | lead(crisis,3)==TRUE | lead(crisis,4)==TRUE | lead(crisis,5)==TRUE | lead(crisis,6)==TRUE | lead(crisis,7)==TRUE | lead(crisis,8)==TRUE | lead(crisis,9)==TRUE | lead(crisis,10)==TRUE | lead(crisis,11)==TRUE | lead(crisis,12)==TRUE | lead(crisis,13)==TRUE | lead(crisis,14)==TRUE | lead(crisis,15)==TRUE | lead(crisis,16)==TRUE | lead(crisis,17)==TRUE | lead(crisis,18)==TRUE | lead(crisis,19)==TRUE | lead(crisis,20)==TRUE | lead(crisis,21)==TRUE | lead(crisis,22)==TRUE | lead(crisis,23)==TRUE | lead(crisis,24)==TRUE))
+
+
+###########
+
+# for version 10, the variable units are as listed:
+# cagdp, not necessary
+# credit, level, US dollar
+# export, annual %
+# import, annual %
+# industry_production, annual %
+# inflation, annual %
+# interest, long-term interest rates, level
+# M1, level, 2010=100
+# M3, level, 2010=100
+# reserve, MLN/SDR, level
+# ShareP, stock-market-price-index, level, 2010=100
+# ExRate, combined data. 1940-1998, 1998-now, level, currency/$
+# ca, THIS VARIABLE IS WRONGLY CALCULATED!!!
+# ExRate_percent, monthly %
+# reserve_percent, monthly %
+# pressure_index, level
+# crisis, dummy
+# crisis_24m, dummy
+
+
+# need to be calculated:
+# deviation of real interest rate from trend
+# excess of real M1 balances
+# annual % for ExRate, DONE
+# annual % for reserve, DONE
+# annual % for M3/M1
+# M3/reserve, levels
+# ... still many, check table-1 of Berg and Pattilo 1999
+
+version10 <- group_by(version10,Country)
+version11 <- mutate(version10,ExRate_annual=(ExRate-lag(ExRate,12))/lag(ExRate,12)*100,reserve_annual=(reserve-lag(reserve,12))/lag(reserve,12)*100)
+version12 <- mutate(version11,realinterest=interest-inflation)
+
+# lm <- lm(version12$realinterest~version12$time)
+# mutate(version12,realinterest_deviation=lm$residuals)
+
+# to calculate the threshold
+
+
+# !!!! NOTICE!!!!! ExRate is contrary to other variables!
+threshold <- function(x){
+  ratio <- 0
+  index <- 0
+  range <- max(x,na.rm=TRUE)-min(x,na.rm=TRUE)
+  for(i in seq(0,1,0.005)){
+    th <- min(x,na.rm = TRUE)+range*i # threshold
+    dummy <- (x<th) # crisis defined by this threshold
+    A <- sum(version10$crisis_24m & dummy,na.rm = TRUE)
+    B <- sum(!version10$crisis_24m & dummy,na.rm = TRUE)
+    C <- sum(version10$crisis_24m & !dummy,na.rm = TRUE)
+    D <- sum(!version10$crisis_24m & !dummy,na.rm = TRUE)
+    if (!(A+B)==0 & (A/(A+B))>ratio){
+      if(A/(A+B)==1){
+        print(i)
+        print("NOTICE!!! The signal/(signal+noise) ratio is 1 !")
+        next
+      }
+      ratio <- A/(A+B)
+      index <- i
+    }
+  }
+  print(paste("ratio is: ",ratio))
+  print(paste("percentile is: ",index))
+  th <- min(x,na.rm = TRUE)+index*range
+  print(paste("threshold is: ",th))
+  return(th)
+}
+
+version12 <- group_by(version12,Country)
+th_try <- summarise(version12,th=threshold(ExRate_annual))
+th_reserve <- summarise(group_by(version12),threshold(export))
+
+
+
