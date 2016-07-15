@@ -99,12 +99,12 @@ version10 <- mutate(version9,crisis_24m=(lead(crisis,1)==TRUE | lead(crisis,2)==
 # annual % for ExRate, DONE
 # annual % for reserve, DONE
 # annual % for M3/M1
-# M3/reserve, levels
+# M3/reserve, levels, DONE
 # ... still many, check table-1 of Berg and Pattilo 1999
 
 version10 <- group_by(version10,Country)
 version11 <- mutate(version10,ExRate_annual=(ExRate-lag(ExRate,12))/lag(ExRate,12)*100,reserve_annual=(reserve-lag(reserve,12))/lag(reserve,12)*100)
-version12 <- mutate(version11,realinterest=interest-inflation)
+version12 <- mutate(version11,realinterest=interest-inflation,M3_reserve=M3/reserve,M3_reserve_percent=(M3_reserve-lag(M3_reserve))/lag(M3_reserve)*100)
 
 # lm <- lm(version12$realinterest~version12$time)
 # mutate(version12,realinterest_deviation=lm$residuals)
@@ -134,16 +134,22 @@ threshold <- function(x){
       index <- i
     }
   }
-  print(paste("ratio is: ",ratio))
-  print(paste("percentile is: ",index))
-  th <- min(x,na.rm = TRUE)+index*range
-  print(paste("threshold is: ",th))
-  return(th)
+  # print(paste("ratio is: ",ratio))
+  # print(paste("percentile is: ",index))
+  # th <- min(x,na.rm = TRUE)+index*range
+  # print(paste("threshold is: ",th))
+  return(index)
 }
 
-version12 <- group_by(version12,Country)
-th_try <- summarise(version12,th=threshold(ExRate_annual))
-th_reserve <- summarise(group_by(version12),threshold(export))
+th_index_reserve_percent <- threshold(version12$reserve_percent)
+th_index_M3_reserve_percent <- threshold(version12$M3_reserve_percent)
+th_index_M3_reserve <- threshold(version12$M3_reserve)
+th <- summarise(group_by(version12,Country),
+                th_reserve_percent=diff(range(reserve_percent,na.rm=TRUE))*th_index_reserve_percent+min(reserve_percent,na.rm=TRUE),
+                th_M3_reserve_percent=diff(range(M3_reserve_percent,na.rm=TRUE))*th_index_M3_reserve_percent+min(M3_reserve_percent,na.rm=TRUE),
+                th_M3_reserve=diff(range(M3_reserve,na.rm=TRUE))*th_index_M3_reserve+min(M3_reserve,na.rm=TRUE))
+
+## above is just a demo!
 
 
 
